@@ -33,6 +33,7 @@ from .Node import Node
 from .RoadLink import RoadLink
 from .RoadNode import RoadNode
 from .TimePlan import TimePlan
+from .TransitLine import TransitLine
 from .VirtualLink import VirtualLink
 from .VirtualNode import VirtualNode
 from .VehicleClassGroup import VehicleClassGroup
@@ -90,6 +91,7 @@ class DynameqNetwork(Network):
     LINK_FLOW_OUT       = 'link_aflowo.dqt'
     LINK_TIME_OUT       = 'link_atime.dqt'
     LINK_SPEED_OUT      = "link_aspeed.dqt"
+    TRANSIT_TIME_OUT    = "line_atime.dqt"
     
     def __init__(self, scenario):
         """
@@ -99,7 +101,8 @@ class DynameqNetwork(Network):
         for :py:class:`VehicleClassGroup` lookups        
         """ 
         Network.__init__(self, scenario)
-        self._dir = None 
+        self._dir = None
+        self._transitLines = {}
                 
     def read(self, dir, file_prefix):
         """
@@ -207,7 +210,15 @@ class DynameqNetwork(Network):
             DtaLogger.info("Read  %8d %-16s from %s" % (count, "CUSTOM PRIOS", custompriofile))
                        
         ## TODO - what about the public transit file?
-        
+        transitfile = os.path.join(dir, DynameqNetwork.TRANSIT_FILE % file_prefix)
+        if os.path.exists(transitfile):
+            count = 0
+            for line in TransitLine.read(self, transitfile):
+                count +=1
+                self._transitLines[line._id] = line
+            DtaLogger.info("Read %8d %-16s from %s" % (count, "PUBLIC TRANSIT LINES", transitfile))
+                
+            
     def write(self, dir, file_prefix):
         """
         Writes the network into the given *dir* with the given *file_prefix*
@@ -995,8 +1006,8 @@ class DynameqNetwork(Network):
                         if s == startTimeInMin: 
                             aggregateCount = 0            		
                         elif s % aggregateTimeStep == 0: 
-        				    mov.setObsCount(s-aggregateTimeStep, s, aggregateCount)
-        				    aggregateCount = 0
+                            mov.setObsCount(s-aggregateTimeStep, s, aggregateCount)
+                            aggregateCount = 0
                         if count<0: continue
                         aggregateCount = aggregateCount + count
             
@@ -1046,11 +1057,41 @@ class DynameqNetwork(Network):
                     if timeStepInMin<aggregateTimeStep: 
                         for s, count in izip(range(startTimeInMin, endTimeInMin + 1, timeStepInMin), fields[3:]):
                             if s == startTimeInMin: 
-            				aggregateCount = 0            		
+                                aggregateCount = 0            		
                             elif s % aggregateTimeStep == 0: 
                                 link.setObsCount(s-aggregateTimeStep, s, aggregateCount)
                                 aggregateCount = 0
                             if count<0: 
-            				continue
+                                continue
                             aggregateCount = aggregateCount + count
-            		
+                            
+    def writeTransitLinesToShp(self, name):
+        w = shapefile.Writer(shapefile.POLYLINE)
+        w.field("ID",       "N", 10)
+        w.field("NAME",     "C", 60)
+        w.field("HDWAY",    "N", 10)
+        w.field("TOTDWELL", "N", 10)
+        w.field("NUMSTOPS", "N", 10)
+        w.field("DELAY",    "N", 10)
+        w.field("FF_TIME",  "N", 20,2)
+        w.field("TRAVTIME", "N", 10)
+                
+        for id in self._transitLines:
+            line = self._transitLines[id]
+            totdwell = 0
+            totstops = 0
+            totFFtime = 0
+            totTravTime = 0
+            centerline = []
+            for seg in line.iterSegments():
+                x = seg.link._startNode.getX()
+                y = seg.link._startNode.getY()
+                centerline.append([x,y])
+                totdwell += seg.dwell
+                totstops = totstops + 1 if totdwell > 0 else totstops
+                totFFtime += seg.link.getFreeFlowTTInMin()
+            #print centerline
+            w.line(parts=[centerline])
+            w.record(id, line.label, line.hway, totdwell, totstops, -1, totFFtime,-1)
+        w.save(name)
+                

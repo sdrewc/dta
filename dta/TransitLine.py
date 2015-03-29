@@ -107,14 +107,14 @@ class TransitLine(object):
         while True:
             pos = inputStream.tell()
             line = inputStream.readline()
-            
             # done with metadata; go back
             if line[0] != "<":
-                inputStream.seek(pos)
+                inputStream.seek(pos-3)
                 break
+            
 
         for trLine in dta.Utils.parseTextRecord(inputStream, is_separator=re.compile(r'^LINE.*'),
-                                                is_comment = re.compile(r'^ *\*'),
+                                                is_comment = re.compile(r'^ *\*.*'),
                                                 joiner = lambda line:line):
             # skip trLine[0] = "LINE"
             line_tokens         = token_re.findall(trLine[1])
@@ -123,14 +123,15 @@ class TransitLine(object):
 
             transit_line_id     = int(line_tokens[0][0])
             transit_line_label  = line_tokens[1][1]
+
             transitLine = TransitLine(net, id=transit_line_id, label=transit_line_label,
                                       litype=int(line_tokens[2][0]),
-                                      vtype=line_tokens[3][0],
-                                      stime=dta.Time.readFromString(line_tokens[4][0]),
-                                      level=int(line_tokens[5][0]),
-                                      active=int(line_tokens[6][0]),
+                                      vtype=line_tokens[4][0],
+                                      stime=dta.Time.readFromString(line_tokens[5][0]),
+                                      level=int(line_tokens[6][0]),
+                                      active=int(line_tokens[7][0]),
                                       hway=headway_time.getMinutes(),
-                                      dep=int(hway_tokens[1][0]))
+                                      dep=int(hway_tokens[2][0]))
 
             for line in trLine[4:]:
                 seg_tokens = token_re.findall(line)
