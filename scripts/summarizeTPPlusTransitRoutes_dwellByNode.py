@@ -71,7 +71,7 @@ if __name__ == "__main__":
     dta.Node.COORDINATE_UNITS   = "feet"
     dta.RoadLink.LENGTH_UNITS   = "miles"
 
-    dta.setupLogging("exportBusTravelTime.INFO.log", "exportBusTravelTime.DEBUG.log", logToConsole=True)
+    dta.setupLogging("exportTPPLusDwell.INFO.log", "exportTPPlusDwell.DEBUG.log", logToConsole=True)
     scenario    = dta.DynameqScenario()
     scenario.read(INPUT_DYNAMEQ_NET_DIR, INPUT_DYNAMEQ_NET_PREFIX)
     net = dta.DynameqNetwork(scenario)
@@ -92,26 +92,16 @@ if __name__ == "__main__":
                 if tpplusRoute.getHeadway(3) == 0: continue
                 if tpplusRoute.name not in LINES_OF_INTEREST: continue
                 linename = tpplusRoute.name
-                dtaTransitLines = tpplusRoute.toTransitLine(net, dtaTransitLineId, MODE_TO_LITYPE, MODE_TO_VTYPE,
-                                                            headwayIndex=3, startTime=dta.Time(15,30), demandDurationInMin=3*60,
-                                                            doShortestPath=False)
 
-                for dtaTransitLine in dtaTransitLines:
-                    # ignore if no segments for the DTA network
-                    if dtaTransitLine.getNumSegments() == 0: continue
-                
-                    # check if the movements are allowed
-                    dtaTransitLine.checkMovementsAreAllowed(enableMovement=True)
-
-                    for segment in dtaTransitLine.iterSegments():
-                        if segment.dwell == 0:
-                            continue
-                        stopnode = segment.link.getEndNode().getId()
-                        station = NODE_TO_SEGMENT[stopnode]['station']
-                        group   = NODE_TO_SEGMENT[stopnode]['group'] 
-                        reportline = "%s, %s, %s, %d, %s, %s, %2f\n"  % (scenario, linename, transit_file, stopnode, station, group, segment.dwell)
-                        output_file.write(reportline)
-                    dtaTransitLineId += 1
+                # ignore if no segments for the DTA network
+                for stop in tpplusRoute.iterTransitStops():
+                    dwell = stop.delay
+                    stopnode = stop.nodeId
+                    station = NODE_TO_SEGMENT[stopnode]['station']
+                    group   = NODE_TO_SEGMENT[stopnode]['group'] 
+                    reportline = "%s, %s, %s, %d, %s, %s, %2f\n"  % (scenario, linename, transit_file, stopnode, station, group, dwell)
+                    output_file.write(reportline)
+                dtaTransitLineId += 1
 
     output_file.close()
 
